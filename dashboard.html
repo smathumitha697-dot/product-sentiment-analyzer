@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Sentiment Analyzer Dashboard</title>
+    <!-- Stable Tailwind CSS Link -->
+    <script src="https://tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800">
+
+    <!-- Header Section -->
+    <header class="bg-blue-600 text-white shadow-md py-6 px-8 flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight">Product Sentiment Analyzer</h1>
+            <p class="text-sm text-blue-100 mt-1">Cross-Platform E-Commerce Review Analytics</p>
+        </div>
+        <button onclick="fetchDashboardData()" class="bg-white text-blue-600 font-semibold px-4 py-2 rounded-lg shadow hover:bg-blue-50 transition duration-200 cursor-pointer">
+            🔄 Refresh Data
+        </button>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        
+        <!-- Metrics Cards Display Panel -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 shadow-xs">
+                <p class="text-sm text-gray-500 font-medium uppercase">Total Reviews</p>
+                <p id="metric-total" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-green-500 shadow-xs">
+                <p class="text-sm text-gray-500 font-medium uppercase">Positive Reviews</p>
+                <p id="metric-positive" class="text-3xl font-bold text-green-600 mt-2">0</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-red-500 shadow-xs">
+                <p class="text-sm text-gray-500 font-medium uppercase">Negative Reviews</p>
+                <p id="metric-negative" class="text-3xl font-bold text-red-600 mt-2">0</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 border-l-4 border-l-amber-500 shadow-xs">
+                <p class="text-sm text-gray-500 font-medium uppercase">Neutral Reviews</p>
+                <p id="metric-neutral" class="text-3xl font-bold text-amber-600 mt-2">0</p>
+            </div>
+        </div>
+
+        <!-- Data Presentation Table Container -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden shadow-xs">
+            <div class="px-6 py-4 bg-gray-100 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-700">Detailed Review Classification Matrix</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 text-left">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Platform</th>
+                            <th class="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Review Summary Title</th>
+                            <th class="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Review Core Text</th>
+                            <th class="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 text-center">Rating</th>
+                            <th class="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 text-center">VADER Sentiment</th>
+                            <th class="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 text-center">TextBlob Sentiment</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reviews-table-body" class="bg-white divide-y divide-gray-200 text-sm">
+                        <tr>
+                            <td colspan="6" class="text-center py-8 text-gray-500">Loading live API stream data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- JavaScript REST API Pipeline Integration -->
+    <script>
+        async function fetchDashboardData() {
+            try {
+                // Since this HTML file is served directly via Flask, 
+                // calling the relative route '/api/reviews' perfectly targets Member 4's endpoint.
+                const response = await fetch('/api/reviews');
+                const result = await response.json();
+                
+                if (result.status === "success") {
+                    const dataset = result.data;
+                    renderMetrics(dataset);
+                    renderTable(dataset);
+                } else {
+                    showError(result.message || "Failed to load dataset.");
+                }
+            } catch (error) {
+                console.error("Dashboard Fetch Error:", error);
+                showError("Backend API connection error. Ensure Member 4 server script app is active.");
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('reviews-table-body').innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-8 text-red-500 font-semibold">
+                        ${message}
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderMetrics(data) {
+            let positiveCount = 0;
+            let negativeCount = 0;
+            let neutralCount = 0;
+
+            data.forEach(item => {
+                // Check common variations of VADER sentiment key labels in column arrays
+                const sentiment = (item.vader_sentiment || item.vader || 'Neutral').toLowerCase();
+                if (sentiment === 'positive') positiveCount++;
+                else if (sentiment === 'negative') negativeCount++;
+                else neutralCount++;
+            });
+
+            document.getElementById('metric-total').innerText = data.length;
+            document.getElementById('metric-positive').innerText = positiveCount;
+            document.getElementById('metric-negative').innerText = negativeCount;
+            document.getElementById('metric-neutral').innerText = neutralCount;
+        }
+
+        function renderTable(data) {
+            const tableBody = document.getElementById('reviews-table-body');
+            tableBody.innerHTML = ""; 
+
+            if (data.length === 0) {
+                tableBody.innerHTML = <tr><td colspan="6" class="text-center py-8 text-gray-500">No review records found in dataset.</td></tr>;
+                return;
+            }
+
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50/70 transition-colors";
+
+                // Map platform badges safely
+                const platformName = item.platform ? item.platform.toLowerCase() : 'amazon';
+                const platformBadge = platformName === 'amazon' 
+                    ? <span class="bg-orange-100 text-orange-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-orange-200">Amazon</span>
+                    : <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-200">Flipkart</span>;
+
+                const getSentimentStyle = (sentiment) => {
+                    const clean = String(sentiment).toLowerCase();
+                    if (clean === 'positive') return 'text-green-600 font-semibold';
+                    if (clean === 'negative') return 'text-red-600 font-semibold';
+                    return 'text-amber-600 font-semibold';
+                };
+
+                // Fallbacks to support varied CSV column names dynamically
+                const reviewTitle = item.title || item.summary || 'N/A';
+                const reviewBody = item.review_text || item.review || 'No Text Found';
+                const starRating = item.rating || item.stars || 0;
+                const vaderRes = item.vader_sentiment || 'Neutral';
+                const blobRes = item.textblob_sentiment || 'Neutral';
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">${platformBadge}</td>
+                    <td class="px-6 py-4 font-semibold text-gray-700 max-w-xs truncate" title="${reviewTitle}">${reviewTitle}</td>
+                    <td class="px-6 py-4 text-gray-600 max-w-md break-words">${reviewBody}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-gray-600 font-bold">${starRating} ⭐</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center ${getSentimentStyle(vaderRes)}">${vaderRes}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center ${getSentimentStyle(blobRes)}">${blobRes}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // Auto trigger pipeline data capture once document finishes landing layout rules
+        window.onload = fetchDashboardData;
+    </script>
+</body>
+</html>
